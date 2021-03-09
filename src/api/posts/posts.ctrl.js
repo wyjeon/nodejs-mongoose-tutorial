@@ -68,11 +68,44 @@ export const write = async ctx => {
 GET /api/posts
 */
 export const list = async ctx => {
+  // query는 문자열이기 때문에 숫자로 변환해 주어야 합니다.
+  // 값이 주어지지 않았다면 1을 기본으로 사용합니다.
+  const page = parseInt(ctx.query.page || '1', 10);
+
+  if (page < 1) {
+    ctx.status = 400;
+    return;
+  }
+
   try {
     // find() 사용하여 데이터를 조회한다.
     // exec()를 붙여야 서버에 쿼리를 요청한다.
-    const posts = await Post.find().exec();
-    ctx.body = posts;
+    // sort({ key: 1 }) : 오름차순 1, 내림차순 -1
+    // limit() : 보이는 개수를 제한한다.
+    // skip(n) : 처음 n개를 제외하고 그다음 데이터를 불러온다.
+    const posts = await Post.find()
+      .sort({ _id: -1 })
+      .limit(10)
+      .skip((page - 1) * 10)
+      //.lean()
+      .exec();
+
+    // 마지막 페이지 번호 알려주기
+    // countDocuments() : 실제 문서 개수
+    const postCount = await Post.countDocuments().exec();
+    ctx.set('Last-Page', Math.ceil(postCount / 10));
+
+    // 내용 길이 제한
+    // find()로 조회한 데이터는 mongoose 문서 인스턴스 형태이기 때문에
+    // toJson()을 통해 JSON형태로 변환한 뒤 변형을 일으켜 줘야한다.
+    // 또는 lean()을 사용하는 방법도 있다.
+    ctx.body = posts
+      .map(post => post.toJSON())
+      .map(post => ({
+        ...post,
+        body:
+          post.body.length < 200 ? post.body : `${post.body.slice(0, 200)}...`,
+      }));
   } catch (e) {
     ctx.throw(500, e);
   }
