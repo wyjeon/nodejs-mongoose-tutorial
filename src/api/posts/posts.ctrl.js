@@ -1,4 +1,17 @@
 import Post from '../../models/post';
+import mongoose from 'mongoose';
+import Joi from '../../../node_modules/joi/lib/index';
+
+const { ObjectId } = mongoose.Types;
+
+export const checkObjectId = (ctx, next) => {
+  const { id } = ctx.params;
+  if (!ObjectId.isValid(id)) {
+    ctx.status = 400; // Bad Request
+    return;
+  }
+  return next();
+};
 
 let postId = 1; // id의 초깃값입니다.
 
@@ -16,6 +29,22 @@ POST /api/posts
 { title, body }
 */
 export const write = async ctx => {
+  const schema = Joi.object().keys({
+    // 객체가 다음 필드를 가지고 있음을 검증
+    title: Joi.string().required(), // required()가 있으면 필수 항목
+    body: Joi.string().required(),
+    tags: Joi.array().items(Joi.string()).required(), // 문자열로 이루어진 배열
+  });
+
+  // 검증하고 나서 검증 실패인 경우 에러 처리
+  const validation = schema.validate(ctx.request.body); // <- const result = Joi.validate(ctx.request.body, schema);
+
+  if (validation.error) {
+    ctx.status = 400; // Bad Request
+    ctx.body = validation.error; // <- ctx.body = result.error;
+    return;
+  }
+
   const { title, body, tags } = ctx.request.body;
 
   // 포스트 인스턴스를 만들 떄 new 키워드를 사용한다.
@@ -88,6 +117,22 @@ PATCH /api/posts/:id
 */
 export const update = async ctx => {
   const { id } = ctx.params;
+
+  const schema = Joi.object().keys({
+    // write에서 사용한 schema와 비슷한데, required()가 없습니다.
+    title: Joi.string(),
+    body: Joi.string(),
+    tags: Joi.array().items(Joi.string()),
+  });
+
+  // 검증하고 나서 검증 실패인 경우 에러 처리
+  const validation = schema.validate(ctx.request.body);
+
+  if (validation.error) {
+    ctx.status = 400; // Bad Request
+    ctx.body = validation.error;
+    return;
+  }
 
   // findByIdAndUpdate()
   // 첫 번째 파라미터 : id
